@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>簡易・青色申告サポートシステム</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-100 p-8">
+
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-gray-800">📊 簡易・青色申告サポートシステム</h1>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
+                <p class="text-sm font-medium text-gray-500 uppercase">売上合計</p>
+                <p id="totalSales" class="text-2xl font-bold text-green-600">¥0</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-red-500">
+                <p class="text-sm font-medium text-gray-500 uppercase">経費合計</p>
+                <p id="totalExpenses" class="text-2xl font-bold text-red-600">¥0</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
+                <p class="text-sm font-medium text-gray-500 uppercase">差引利益</p>
+                <p id="totalProfit" class="text-2xl font-bold text-blue-600">¥0</p>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700">取引の入力</h2>
+            <form id="transactionForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-600">日付</label>
+                    <input type="date" id="transactionDate" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-gray-50">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600">区分</label>
+                    <select id="transactionType" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-gray-50">
+                        <option value="売上">売上（収入）</option>
+                        <option value="経費">経費（支出）</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600">金額（円）</label>
+                    <input type="number" id="amount" required min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-gray-50" placeholder="5000">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600">勘定科目</label>
+                    <select id="category" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-gray-50">
+                        <option value="売上">売上</option>
+                        <option value="消耗品費">消耗品費（パソコン、文具など）</option>
+                        <option value="旅費交通費">旅費交通費（電車、タクシーなど）</option>
+                        <option value="通信費">通信費（ネット代、携帯代など）</option>
+                        <option value="接待交際費">接待交際費（打ち合わせのカフェ代など）</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-600">備考</label>
+                    <input type="text" id="description" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-gray-50" placeholder="〇〇の購入代金など">
+                </div>
+                <div class="md:col-span-2 text-right">
+                    <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition font-medium">登録する</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700">取引履歴一覧</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">日付</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">区分</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">勘定科目</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">金額</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">備考</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactionList" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const USER_ID = 1;
+        // ポート番号が8081の場合は 'http://localhost:8081/api/transactions' に書き換えてください
+        const API_URL = '/api/transactions'; 
+
+        window.addEventListener('DOMContentLoaded', fetchTransactions);
+
+        async function fetchTransactions() {
+            try {
+                const response = await fetch(`${API_URL}?userId=${USER_ID}`);
+                const transactions = await response.json();
+                
+                const listBody = document.getElementById('transactionList');
+                listBody.innerHTML = ''; 
+
+                let salesSum = 0;
+                let expenseSum = 0;
+
+                transactions.forEach(t => {
+                    if (t.transactionType === '売上') {
+                        salesSum += parseFloat(t.amount);
+                    } else if (t.transactionType === '経費') {
+                        expenseSum += parseFloat(t.amount);
+                    }
+
+                    const row = document.createElement('tr');
+                    const typeColor = t.transactionType === '売上' ? 'text-green-600 font-bold' : 'text-red-600 font-bold';
+                    const formattedAmount = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(t.amount);
+
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${t.transactionDate}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm ${typeColor}">${t.transactionType}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${t.category}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm ${typeColor}">${formattedAmount}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${t.description || ''}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button onclick="deleteTransaction(${t.id})" class="text-red-600 hover:text-red-900 cursor-pointer">削除</button>
+                        </td>
+                    `;
+                    listBody.appendChild(row);
+                });
+
+                const profitSum = salesSum - expenseSum;
+                const jpCurrency = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' });
+
+                document.getElementById('totalSales').textContent = jpCurrency.format(salesSum);
+                document.getElementById('totalExpenses').textContent = jpCurrency.format(expenseSum);
+                document.getElementById('totalProfit').textContent = jpCurrency.format(profitSum);
+
+            } catch (error) {
+                console.error('データの取得に失敗しました:', error);
+            }
+        }
+
+        document.getElementById('transactionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                userId: USER_ID,
+                transactionDate: document.getElementById('transactionDate').value,
+                transactionType: document.getElementById('transactionType').value,
+                amount: document.getElementById('amount').value,
+                category: document.getElementById('category').value,
+                description: document.getElementById('description').value
+            };
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    document.getElementById('transactionForm').reset();
+                    fetchTransactions();
+                } else {
+                    alert('登録に失敗しました。');
+                }
+            } catch (error) {
+                console.error('通信エラー:', error);
+            }
+        });
+
+        // 📝 削除処理の関数
+        async function deleteTransaction(id) {
+            if (!confirm('この取引データを削除してもよろしいですか？')) {
+                return;
+            }
+            try {
+                const response = await fetch(`${API_URL}/${id}`, {
+                    method: 'DELETE'
+                });
+                if (response.ok) {
+                    fetchTransactions();
+                } else {
+                    alert('削除に失敗しました。');
+                }
+            } catch (error) {
+                console.error('通信エラー:', error);
+            }
+        }
+    </script>
+</body>
+</html>
